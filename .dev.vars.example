@@ -1,0 +1,8 @@
+LYNK_MERCHANT_KEY=replace-with-lynk-merchant-key
+MERCHANT_CONFIG_ENCRYPTION_KEY=replace-with-long-random-encryption-secret
+JWT_SECRET=replace-with-long-random-secret
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=replace-with-admin-password
+TURNSTILE_SECRET_KEY=replace-with-turnstile-secret
+TURNSTILE_ENABLED=false
+CORS_ORIGIN=http://localhost:5173,https://license-autogas.id-manager.my.id
