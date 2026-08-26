@@ -19,9 +19,7 @@ async function handleWebhook(c: Context<AppContext>, accountSlug?: string) {
   try { payload = JSON.parse(rawPayload) as LynkPayload; } catch { return jsonError(c, 400, 'Invalid JSON payload'); }
   if (!payload.event && !payload.data) return c.json({ success: true, message: 'Webhook endpoint reachable' });
   const data = payload.data?.message_data;
-  if (payload.event === 'webhook.test' || payload.event === 'test' || data?.message_action === 'TEST') {
-    return c.json({ success: true, message: 'Webhook test received' });
-  }
+  if ((payload.event && payload.event !== 'payment.received') || data?.message_action === 'TEST') return c.json({ success: true, message: 'Webhook event acknowledged' });
   // Lynk currently sends message_id inside message_data. Keep the outer
   // location as a fallback for older payloads and the original spec.
   const messageId = data?.message_id ?? payload.data?.message_id;
