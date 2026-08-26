@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS licenses (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT UNIQUE NOT NULL COLLATE NOCASE,
   key TEXT UNIQUE NOT NULL,
-  plan_type TEXT NOT NULL CHECK (plan_type IN ('trial', 'monthly', 'bimonthly', 'yearly')),
+  plan_type TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'expired', 'revoked')),
   current_period_end TEXT,
   trial_ends_at TEXT,
@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS product_mapping (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   title_pattern TEXT UNIQUE NOT NULL,
   duration_days INTEGER NOT NULL CHECK (duration_days > 0),
-  plan_type TEXT NOT NULL CHECK (plan_type IN ('trial', 'monthly', 'bimonthly', 'yearly')),
+  plan_type TEXT NOT NULL,
   is_active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

@@ -81,6 +81,59 @@ async function runSchemaMigrations(client: Client): Promise<void> {
 
   const migrations: Array<{ version: number; name: string; apply: (database: Client) => Promise<void> }> = [
     { version: 1, name: 'baseline-current-schema', apply: ensureCurrentSchema },
+    {
+      version: 2,
+      name: 'custom-plan-types',
+      apply: async (database) => {
+        const [licensesSql, mappingsSql] = await Promise.all([
+          database.execute("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'licenses'"),
+          database.execute("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'product_mapping'"),
+        ]);
+        const licensesDefinition = String(licensesSql.rows[0]?.[0] ?? licensesSql.rows[0]?.sql ?? '');
+        const mappingsDefinition = String(mappingsSql.rows[0]?.[0] ?? mappingsSql.rows[0]?.sql ?? '');
+        if (!licensesDefinition.includes('plan_type IN') && !mappingsDefinition.includes('plan_type IN')) return;
+
+        await database.execute('PRAGMA foreign_keys = OFF');
+        try {
+          await database.executeMultiple(`
+            CREATE TABLE licenses_custom_plan (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              email TEXT UNIQUE NOT NULL COLLATE NOCASE,
+              key TEXT UNIQUE NOT NULL,
+              plan_type TEXT NOT NULL,
+              status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'expired', 'revoked')),
+              current_period_end TEXT,
+              trial_ends_at TEXT,
+              max_devices INTEGER NOT NULL DEFAULT 1 CHECK (max_devices > 0),
+              created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            INSERT INTO licenses_custom_plan(id, email, key, plan_type, status, current_period_end, trial_ends_at, max_devices, created_at, updated_at)
+              SELECT id, email, key, plan_type, status, current_period_end, trial_ends_at, max_devices, created_at, updated_at FROM licenses;
+            DROP TABLE licenses;
+            ALTER TABLE licenses_custom_plan RENAME TO licenses;
+            CREATE INDEX IF NOT EXISTS idx_licenses_email ON licenses(email);
+            CREATE INDEX IF NOT EXISTS idx_licenses_status ON licenses(status);
+            CREATE TABLE product_mapping_custom_plan (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              title_pattern TEXT UNIQUE NOT NULL,
+              duration_days INTEGER NOT NULL CHECK (duration_days > 0),
+              plan_type TEXT NOT NULL,
+              max_devices INTEGER NOT NULL DEFAULT 1 CHECK (max_devices > 0),
+              is_active INTEGER NOT NULL DEFAULT 1,
+              created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            INSERT INTO product_mapping_custom_plan(id, title_pattern, duration_days, plan_type, max_devices, is_active, created_at)
+              SELECT id, title_pattern, duration_days, plan_type, max_devices, is_active, created_at FROM product_mapping;
+            DROP TABLE product_mapping;
+            ALTER TABLE product_mapping_custom_plan RENAME TO product_mapping;
+            CREATE INDEX IF NOT EXISTS idx_product_mapping_active ON product_mapping(is_active);
+          `);
+        } finally {
+          await database.execute('PRAGMA foreign_keys = ON');
+        }
+      },
+    },
   ];
   for (const migration of migrations) {
     const applied = await client.execute({

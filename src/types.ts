@@ -1,4 +1,4 @@
-export type PlanType = 'trial' | 'monthly' | 'bimonthly' | 'yearly';
+export type PlanType = string;
 export type LicenseStatus = 'active' | 'expired' | 'revoked';
 export type Platform = 'android' | 'web';
 

@@ -20,6 +20,12 @@ function normalizeMaxDevices(value: unknown): number | null {
   return Number.isInteger(maxDevices) && maxDevices >= 1 && maxDevices <= 100 ? maxDevices : null;
 }
 
+function normalizePlanType(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const planType = value.trim();
+  return planType && planType.length <= 50 && !/[\r\n]/.test(planType) ? planType : null;
+}
+
 function publicAccount(row: Record<string, unknown>) {
   return { ...row, webhook_path: `/webhook/lynkid/${row.slug}` };
 }
@@ -85,10 +91,11 @@ adminRoutes.get('/mapping', async (c) => {
 adminRoutes.post('/mapping', async (c) => {
   const body = await c.req.json<{ title_pattern?: string; duration_days?: number; plan_type?: string; max_devices?: number; is_active?: boolean }>().catch(() => ({} as { title_pattern?: string; duration_days?: number; plan_type?: string; max_devices?: number; is_active?: boolean }));
   const titlePattern = body.title_pattern?.trim();
+  const planType = normalizePlanType(body.plan_type);
   const maxDevices = normalizeMaxDevices(body.max_devices);
-  if (!titlePattern || !Number.isInteger(body.duration_days) || (body.duration_days as number) < 1 || !['trial', 'monthly', 'bimonthly', 'yearly'].includes(body.plan_type ?? '') || maxDevices === null) return jsonError(c, 400, 'title_pattern, duration_days, max_devices, and a valid plan_type are required');
+  if (!titlePattern || !Number.isInteger(body.duration_days) || (body.duration_days as number) < 1 || planType === null || maxDevices === null) return jsonError(c, 400, 'title_pattern, duration_days, max_devices, and a valid plan_type are required');
   try {
-    const result = await c.env.DB.prepare('INSERT INTO product_mapping(title_pattern, duration_days, plan_type, max_devices, is_active) VALUES (?, ?, ?, ?, ?) RETURNING id, title_pattern, duration_days, plan_type, max_devices, is_active, created_at').bind(titlePattern, body.duration_days as number, body.plan_type as string, maxDevices, body.is_active === false ? 0 : 1).first<Record<string, unknown>>();
+    const result = await c.env.DB.prepare('INSERT INTO product_mapping(title_pattern, duration_days, plan_type, max_devices, is_active) VALUES (?, ?, ?, ?, ?) RETURNING id, title_pattern, duration_days, plan_type, max_devices, is_active, created_at').bind(titlePattern, body.duration_days as number, planType, maxDevices, body.is_active === false ? 0 : 1).first<Record<string, unknown>>();
     await writeAudit(c.env.DB, 'mapping.created', { targetType: 'mapping', targetId: result?.id as number | undefined, details: { title_pattern: titlePattern, max_devices: maxDevices } });
     return c.json({ mapping: result }, 201);
   } catch (error) { return jsonError(c, 409, 'A mapping with that title pattern already exists', String(error)); }
@@ -98,9 +105,10 @@ adminRoutes.put('/mapping/:id', async (c) => {
   const id = Number(c.req.param('id'));
   const body = await c.req.json<{ title_pattern?: string; duration_days?: number; plan_type?: string; max_devices?: number; is_active?: boolean }>().catch(() => ({} as { title_pattern?: string; duration_days?: number; plan_type?: string; max_devices?: number; is_active?: boolean }));
   const titlePattern = body.title_pattern?.trim();
+  const planType = normalizePlanType(body.plan_type);
   const maxDevices = normalizeMaxDevices(body.max_devices);
-  if (!Number.isInteger(id) || !titlePattern || !Number.isInteger(body.duration_days) || (body.duration_days as number) < 1 || !['trial', 'monthly', 'bimonthly', 'yearly'].includes(body.plan_type ?? '') || maxDevices === null) return jsonError(c, 400, 'Invalid mapping payload');
-  const result = await c.env.DB.prepare('UPDATE product_mapping SET title_pattern = ?, duration_days = ?, plan_type = ?, max_devices = ?, is_active = ? WHERE id = ? RETURNING id, title_pattern, duration_days, plan_type, max_devices, is_active, created_at').bind(titlePattern, body.duration_days as number, body.plan_type as string, maxDevices, body.is_active === false ? 0 : 1, id).first<Record<string, unknown>>();
+  if (!Number.isInteger(id) || !titlePattern || !Number.isInteger(body.duration_days) || (body.duration_days as number) < 1 || planType === null || maxDevices === null) return jsonError(c, 400, 'Invalid mapping payload');
+  const result = await c.env.DB.prepare('UPDATE product_mapping SET title_pattern = ?, duration_days = ?, plan_type = ?, max_devices = ?, is_active = ? WHERE id = ? RETURNING id, title_pattern, duration_days, plan_type, max_devices, is_active, created_at').bind(titlePattern, body.duration_days as number, planType, maxDevices, body.is_active === false ? 0 : 1, id).first<Record<string, unknown>>();
   if (!result) return jsonError(c, 404, 'Mapping not found');
   await writeAudit(c.env.DB, 'mapping.updated', { targetType: 'mapping', targetId: id, details: { title_pattern: titlePattern, max_devices: maxDevices } });
   return c.json({ mapping: result });
@@ -131,10 +139,10 @@ adminRoutes.post('/licenses', async (c) => {
   }>().catch(() => ({} as { email?: string; key?: string; plan_type?: string; duration_days?: number; max_devices?: number }));
   const email = normalizeEmail(body.email);
   const key = (body.key?.trim() || generateLicenseKey()).toUpperCase();
-  const planType = body.plan_type;
+  const planType = normalizePlanType(body.plan_type);
   const durationDays = Number(body.duration_days);
   const maxDevices = Number(body.max_devices);
-  if (!email || !/^[A-Z0-9-]{8,64}$/.test(key) || !['trial', 'monthly', 'bimonthly', 'yearly'].includes(planType ?? '') || !Number.isInteger(durationDays) || durationDays < 1 || durationDays > 3650 || !Number.isInteger(maxDevices) || maxDevices < 1 || maxDevices > 100) {
+  if (!email || !/^[A-Z0-9-]{8,64}$/.test(key) || planType === null || !Number.isInteger(durationDays) || durationDays < 1 || durationDays > 3650 || !Number.isInteger(maxDevices) || maxDevices < 1 || maxDevices > 100) {
     return jsonError(c, 400, 'email, valid key, duration_days, max_devices, and a valid plan_type are required');
   }
 
@@ -142,7 +150,7 @@ adminRoutes.post('/licenses', async (c) => {
   try {
     const license = await c.env.DB.prepare(
       "INSERT INTO licenses(email, key, plan_type, status, current_period_end, max_devices, updated_at) VALUES (?, ?, ?, 'active', ?, ?, ?) RETURNING id, email, key, plan_type, status, current_period_end, max_devices, created_at, updated_at"
-    ).bind(email, key, planType as string, currentPeriodEnd, maxDevices, isoNow()).first<Record<string, unknown>>();
+    ).bind(email, key, planType, currentPeriodEnd, maxDevices, isoNow()).first<Record<string, unknown>>();
     await writeAudit(c.env.DB, 'license.created', { licenseId: license?.id as number | undefined, targetType: 'license', targetId: license?.id as number | undefined, details: { email, plan_type: planType, duration_days: durationDays, max_devices: maxDevices, source: 'manual' } });
     return c.json({ success: true, license }, 201);
   } catch {

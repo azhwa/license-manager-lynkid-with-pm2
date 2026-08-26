@@ -28,6 +28,8 @@ Smoke test bersifat write dan memerlukan `SMOKE_TEST_ALLOW_WRITE=true` secara ek
 
 Batas device ditentukan oleh `max_devices` pada product mapping; tidak ada lagi batas global dari environment.
 
+`plan_type` dapat diisi bebas sebagai teks (maksimal 50 karakter), termasuk perbedaan huruf besar/kecil, baik saat membuat license manual maupun product mapping. Nilai lama seperti `trial`, `monthly`, `bimonthly`, dan `yearly` tetap valid. Saat migrasi, database lama dengan CHECK constraint plan type akan diubah otomatis tanpa menghapus data.
+
 ## Endpoint
 
 - `POST /admin/login`
