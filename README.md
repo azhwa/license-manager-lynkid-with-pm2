@@ -6,6 +6,8 @@ Backend Node.js + Hono untuk license manager Android/web dengan Turso/libSQL seb
 
 Backend juga menyediakan runtime Node.js untuk deploy di VPS melalui PM2. Panduan deploy VPS + Cloudflare Tunnel ada di [`DEPLOY-VPS.md`](DEPLOY-VPS.md).
 
+Dokumentasi lengkap semua endpoint dan contoh JSON tersedia di [`API-ENDPOINTS.md`](API-ENDPOINTS.md).
+
 ## Menjalankan lokal
 
 ```bash
@@ -36,6 +38,7 @@ Batas device ditentukan oleh `max_devices` pada product mapping; tidak ada lagi 
 - `GET|POST|PUT|DELETE /admin/mapping`
 - `GET|POST|PUT /admin/lynk-accounts`
 - `GET|POST /admin/licenses` (POST untuk membuat license manual)
+- `PUT /admin/licenses/:id` (update license manual)
 - `GET /admin/licenses/:id/activations`
 - `DELETE /admin/licenses/:id/activations/:activation_id`
 - `POST /admin/licenses/:id/revoke|reactivate`

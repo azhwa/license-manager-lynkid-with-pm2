@@ -26,6 +26,14 @@ function normalizePlanType(value: unknown): string | null {
   return planType && planType.length <= 50 && !/[\r\n]/.test(planType) ? planType : null;
 }
 
+function normalizeExpiresAt(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const rawValue = value.trim();
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(rawValue) ? `${rawValue}T23:59:59.999Z` : rawValue;
+  const parsed = new Date(normalized);
+  return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : null;
+}
+
 function publicAccount(row: Record<string, unknown>) {
   return { ...row, webhook_path: `/webhook/lynkid/${row.slug}` };
 }
@@ -155,6 +163,39 @@ adminRoutes.post('/licenses', async (c) => {
     return c.json({ success: true, license }, 201);
   } catch {
     return jsonError(c, 409, 'Email atau license key sudah digunakan');
+  }
+});
+
+adminRoutes.put('/licenses/:id', async (c) => {
+  const id = Number(c.req.param('id'));
+  const body = await c.req.json<{
+    email?: string;
+    plan_type?: string;
+    expires_at?: string;
+    max_devices?: number;
+  }>().catch(() => ({} as { email?: string; plan_type?: string; expires_at?: string; max_devices?: number }));
+  const email = normalizeEmail(body.email);
+  const planType = normalizePlanType(body.plan_type);
+  const expiresAt = normalizeExpiresAt(body.expires_at);
+  const maxDevices = normalizeMaxDevices(body.max_devices);
+  if (!Number.isInteger(id) || !email || planType === null || expiresAt === null || maxDevices === null) {
+    return jsonError(c, 400, 'email, plan_type, expires_at, and a valid max_devices are required');
+  }
+
+  const existing = await c.env.DB.prepare('SELECT id, status FROM licenses WHERE id = ?').bind(id).first<{ id: number; status: string }>();
+  if (!existing) return jsonError(c, 404, 'License not found');
+  const usedDevices = (await c.env.DB.prepare('SELECT COUNT(*) AS count FROM activations WHERE license_id = ?').bind(id).first<{ count: number }>())?.count ?? 0;
+  if (usedDevices > maxDevices) return jsonError(c, 409, 'max_devices cannot be lower than the current active device count', { max_devices: maxDevices, used_devices: usedDevices });
+
+  const nextStatus = existing.status === 'revoked' ? 'revoked' : new Date(expiresAt).getTime() > Date.now() ? 'active' : 'expired';
+  try {
+    const license = await c.env.DB.prepare(
+      'UPDATE licenses SET email = ?, plan_type = ?, current_period_end = ?, max_devices = ?, status = ?, updated_at = ? WHERE id = ? RETURNING id, email, key, plan_type, status, current_period_end, trial_ends_at, max_devices, created_at, updated_at'
+    ).bind(email, planType, expiresAt, maxDevices, nextStatus, isoNow(), id).first<Record<string, unknown>>();
+    await writeAudit(c.env.DB, 'license.updated', { licenseId: id, targetType: 'license', targetId: id, details: { email, plan_type: planType, expires_at: expiresAt, max_devices: maxDevices } });
+    return c.json({ success: true, license });
+  } catch {
+    return jsonError(c, 409, 'Email sudah digunakan oleh license lain');
   }
 });
 
