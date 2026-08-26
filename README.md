@@ -30,6 +30,8 @@ Salin `.env.example` dan `frontend/.env.example` sebagai referensi konfigurasi. 
 
 `TURNSTILE_ENABLED=false` membuat endpoint check dan login admin bisa dipakai lokal tanpa token. Di production, set `TURNSTILE_ENABLED=true` dan `TURNSTILE_SECRET_KEY`. Frontend production juga harus memiliki `PUBLIC_TURNSTILE_SITE_KEY`.
 
+Pada runtime Node/PM2, validasi lisensi selalu membaca Turso secara langsung. Cache memory hanya digunakan untuk rate limit dan akan reset ketika proses PM2 restart.
+
 Batas device ditentukan oleh `max_devices` pada product mapping; tidak ada lagi batas global dari environment.
 
 ## Endpoint

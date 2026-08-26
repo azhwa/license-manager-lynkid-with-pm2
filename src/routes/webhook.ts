@@ -65,11 +65,6 @@ async function handleWebhook(c: Context<AppContext>, accountSlug?: string) {
   try {
     await c.env.DB.batch(statements);
     if (log?.id) await c.env.DB.prepare('UPDATE webhook_logs SET processed = 1 WHERE id = ?').bind(log.id).run();
-    const activationRows: { results: Array<{ device_hash: string }> } = license ? await c.env.DB.prepare('SELECT device_hash FROM activations WHERE license_id = ?').bind(license.id).all<{ device_hash: string }>() : { results: [] };
-    await Promise.allSettled([
-      c.env.KV_CACHE?.delete(`license:${licenseKey}`),
-      ...activationRows.results.map((activation) => c.env.KV_CACHE?.delete(`license:${licenseKey}:${activation.device_hash}`))
-    ]);
     return c.json({ success: true, account: account?.slug ?? 'legacy', license_key: licenseKey, renewal_type: renewalType, expires_at: newEnd });
   } catch (error) {
     if (log?.id) await c.env.DB.prepare('UPDATE webhook_logs SET error_message = ? WHERE id = ?').bind(String(error), log.id).run();

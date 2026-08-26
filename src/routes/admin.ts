@@ -23,14 +23,6 @@ function publicAccount(row: Record<string, unknown>) {
   return { ...row, webhook_path: `/webhook/lynkid/${row.slug}` };
 }
 
-async function invalidateLicenseCaches(c: Parameters<typeof requireAdmin>[0], licenseId: number, licenseKey: string): Promise<void> {
-  const activationRows = await c.env.DB.prepare('SELECT device_hash FROM activations WHERE license_id = ?').bind(licenseId).all<{ device_hash: string }>();
-  await Promise.allSettled([
-    c.env.KV_CACHE?.delete(`license:${licenseKey}`),
-    ...activationRows.results.map((activation) => c.env.KV_CACHE?.delete(`license:${licenseKey}:${activation.device_hash}`))
-  ]);
-}
-
 adminRoutes.get('/lynk-accounts', async (c) => {
   const result = await c.env.DB.prepare('SELECT id, name, slug, is_active, created_at, updated_at FROM lynk_accounts ORDER BY created_at DESC').all<Record<string, unknown>>();
   return c.json({ accounts: result.results.map(publicAccount) });
@@ -143,9 +135,7 @@ adminRoutes.delete('/licenses/:id/activations/:activationId', async (c) => {
   if (!Number.isInteger(licenseId) || !Number.isInteger(activationId)) return jsonError(c, 400, 'Invalid activation id');
   const activation = await c.env.DB.prepare('SELECT device_hash FROM activations WHERE id = ? AND license_id = ?').bind(activationId, licenseId).first<{ device_hash: string }>();
   if (!activation) return jsonError(c, 404, 'Activation not found');
-  const license = await c.env.DB.prepare('SELECT key FROM licenses WHERE id = ?').bind(licenseId).first<{ key: string }>();
   await c.env.DB.prepare('DELETE FROM activations WHERE id = ? AND license_id = ?').bind(activationId, licenseId).run();
-  if (license) await c.env.KV_CACHE?.delete(`license:${license.key}:${activation.device_hash}`);
   await writeAudit(c.env.DB, 'activation.unbound', { licenseId, targetType: 'activation', targetId: activationId, details: { device_hash: activation.device_hash } });
   return c.body(null, 204);
 });
@@ -153,10 +143,9 @@ adminRoutes.delete('/licenses/:id/activations/:activationId', async (c) => {
 adminRoutes.post('/licenses/:id/revoke', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isInteger(id)) return jsonError(c, 400, 'Invalid license id');
-  const license = await c.env.DB.prepare('SELECT key, status FROM licenses WHERE id = ?').bind(id).first<{ key: string; status: string }>();
+  const license = await c.env.DB.prepare('SELECT status FROM licenses WHERE id = ?').bind(id).first<{ status: string }>();
   if (!license) return jsonError(c, 404, 'License not found');
   await c.env.DB.prepare("UPDATE licenses SET status = 'revoked', updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(id).run();
-  await invalidateLicenseCaches(c, id, license.key);
   await writeAudit(c.env.DB, 'license.revoked', { licenseId: id, targetType: 'license', targetId: id, details: { previous_status: license.status } });
   return c.json({ success: true, status: 'revoked' });
 });
@@ -164,11 +153,10 @@ adminRoutes.post('/licenses/:id/revoke', async (c) => {
 adminRoutes.post('/licenses/:id/reactivate', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isInteger(id)) return jsonError(c, 400, 'Invalid license id');
-  const license = await c.env.DB.prepare('SELECT key, status, current_period_end FROM licenses WHERE id = ?').bind(id).first<{ key: string; status: string; current_period_end: string | null }>();
+  const license = await c.env.DB.prepare('SELECT status, current_period_end FROM licenses WHERE id = ?').bind(id).first<{ status: string; current_period_end: string | null }>();
   if (!license) return jsonError(c, 404, 'License not found');
   if (!license.current_period_end || new Date(license.current_period_end).getTime() <= Date.now()) return jsonError(c, 409, 'Expired licenses cannot be reactivated');
   await c.env.DB.prepare("UPDATE licenses SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(id).run();
-  await invalidateLicenseCaches(c, id, license.key);
   await writeAudit(c.env.DB, 'license.reactivated', { licenseId: id, targetType: 'license', targetId: id, details: { previous_status: license.status } });
   return c.json({ success: true, status: 'active' });
 });

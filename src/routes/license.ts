@@ -79,16 +79,11 @@ licenseRoutes.get('/validate', async (c) => {
   const key = c.req.query('license_key')?.trim().toUpperCase();
   const deviceHash = normalizeDeviceHash(c.req.query('device_hash'));
   if (!key || !deviceHash) return jsonError(c, 400, 'license_key and device_hash (SHA-256) are required');
-  const cacheKey = `license:${key}:${deviceHash}`;
-  let cached: Record<string, unknown> | null = null;
-  try { cached = await c.env.KV_CACHE?.get(cacheKey, 'json') as Record<string, unknown> | null; } catch { cached = null; }
-  if (cached) return c.json(cached);
   const license = await findLicenseByKey(c.env.DB, key);
   if (!license) return c.json({ valid: false, status: 'not_found', expires_at: null, days_remaining: 0 });
   const activation = await c.env.DB.prepare('SELECT id FROM activations WHERE license_id = ? AND device_hash = ?').bind(license.id, deviceHash).first<{ id: number }>();
   const active = Boolean(activation) && isActive(license.current_period_end, license.status);
   const response = { valid: active, status: active ? 'active' : license.status === 'revoked' ? 'revoked' : 'expired', expires_at: license.current_period_end, days_remaining: daysRemaining(license.current_period_end), plan_type: license.plan_type };
-  try { await c.env.KV_CACHE?.put(cacheKey, JSON.stringify(response), { expirationTtl: 86_400 }); } catch { /* Continue without cache when KV is unavailable. */ }
   if (activation) await c.env.DB.prepare('UPDATE activations SET last_seen = ? WHERE id = ?').bind(isoNow(), activation.id).run();
   return c.json(response);
 });
