@@ -42,6 +42,7 @@ Batas device ditentukan oleh `max_devices` pada product mapping; tidak ada lagi 
 - `POST /webhook/lynkid/:account_slug`
 - `POST /license/check`
 - `POST /license/activate`
+- `POST /license/unbind`
 - `GET /license/validate?license_key=...&device_hash=...`
 
 ## Verifikasi lokal end-to-end

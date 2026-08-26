@@ -5,10 +5,12 @@ import { daysRemaining, isActive, jsonError, isoNow } from '../utils/http';
 import { verifyTurnstile } from '../utils/turnstile';
 import { signJwt } from '../utils/jwt';
 import { checkRateLimit, createRateLimit } from '../middleware/rate-limit';
+import { writeAudit } from '../utils/audit';
 
 export const licenseRoutes = new Hono<AppContext>();
 licenseRoutes.use('/check', checkRateLimit);
 licenseRoutes.use('/activate', createRateLimit({ scope: 'license-activate', maxRequests: 20, windowSeconds: 60 }));
+licenseRoutes.use('/unbind', createRateLimit({ scope: 'license-unbind', maxRequests: 20, windowSeconds: 60 }));
 
 function normalizeDeviceHash(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -73,6 +75,27 @@ licenseRoutes.post('/activate', async (c) => {
   const now = Math.floor(Date.now() / 1000);
   const token = await signJwt({ sub: license.key, role: 'license', device_hash: deviceHash, iat: now, exp: now + 24 * 60 * 60 }, c.env.JWT_SECRET);
   return c.json({ success: true, message: 'Device activated successfully', device_slot_used: slotUsed, max_devices: license.max_devices, expires_at: license.current_period_end, token });
+});
+
+licenseRoutes.post('/unbind', async (c) => {
+  const body = await c.req.json<{ license_key?: string; device_hash?: string }>().catch(() => ({} as { license_key?: string; device_hash?: string }));
+  const key = body.license_key?.trim().toUpperCase();
+  const deviceHash = normalizeDeviceHash(body.device_hash);
+  if (!key || !deviceHash) return jsonError(c, 400, 'license_key and device_hash (SHA-256) are required');
+
+  const license = await findLicenseByKey(c.env.DB, key);
+  if (!license) return jsonError(c, 404, 'License not found');
+
+  const result = await c.env.DB.prepare('DELETE FROM activations WHERE license_id = ? AND device_hash = ?').bind(license.id, deviceHash).run();
+  if (result.meta.changes) {
+    await writeAudit(c.env.DB, 'activation.unbound', {
+      licenseId: license.id,
+      targetType: 'activation',
+      details: { device_hash: deviceHash, source: 'client' },
+    });
+  }
+
+  return c.json({ success: true, message: 'Device unbound successfully' });
 });
 
 licenseRoutes.get('/validate', async (c) => {
