@@ -33,7 +33,7 @@ Batas device ditentukan oleh `max_devices` pada product mapping; tidak ada lagi 
 - `POST /admin/login`
 - `GET|POST|PUT|DELETE /admin/mapping`
 - `GET|POST|PUT /admin/lynk-accounts`
-- `GET /admin/licenses?email=...`
+- `GET|POST /admin/licenses` (POST untuk membuat license manual)
 - `GET /admin/licenses/:id/activations`
 - `DELETE /admin/licenses/:id/activations/:activation_id`
 - `POST /admin/licenses/:id/revoke|reactivate`

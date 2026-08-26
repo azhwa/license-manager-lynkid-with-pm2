@@ -34,11 +34,12 @@ export interface LynkPayload {
     message_action?: string;
     message_code?: string;
     message_data?: {
+      message_action?: string;
       createdAt?: string;
       customer?: { email?: string; name?: string; phone?: string };
       items?: Array<{ title?: string; price?: number; qty?: number; uuid?: string }>;
       refId?: string;
-      totals?: { grandTotal?: number };
+      totals?: { grandTotal?: number | string };
       message_id?: string;
     };
     message_id?: string;

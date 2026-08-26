@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
 import type { AppContext } from '../types';
 import { requireAdmin } from '../middleware/auth';
-import { jsonError } from '../utils/http';
+import { isoNow, jsonError, normalizeEmail } from '../utils/http';
 import { encryptMerchantKey } from '../utils/merchant-key';
 import { writeAudit } from '../utils/audit';
+import { generateLicenseKey } from '../utils/license-key';
 
 export const adminRoutes = new Hono<AppContext>();
 adminRoutes.use('*', requireAdmin);
@@ -118,6 +119,35 @@ adminRoutes.get('/licenses', async (c) => {
   const query = email ? `${select} WHERE email = ? COLLATE NOCASE ORDER BY created_at DESC` : `${select} ORDER BY created_at DESC LIMIT 100`;
   const result = await c.env.DB.prepare(query).bind(...(email ? [email] : [])).all();
   return c.json({ licenses: result.results });
+});
+
+adminRoutes.post('/licenses', async (c) => {
+  const body = await c.req.json<{
+    email?: string;
+    key?: string;
+    plan_type?: string;
+    duration_days?: number;
+    max_devices?: number;
+  }>().catch(() => ({} as { email?: string; key?: string; plan_type?: string; duration_days?: number; max_devices?: number }));
+  const email = normalizeEmail(body.email);
+  const key = (body.key?.trim() || generateLicenseKey()).toUpperCase();
+  const planType = body.plan_type;
+  const durationDays = Number(body.duration_days);
+  const maxDevices = Number(body.max_devices);
+  if (!email || !/^[A-Z0-9-]{8,64}$/.test(key) || !['trial', 'monthly', 'bimonthly', 'yearly'].includes(planType ?? '') || !Number.isInteger(durationDays) || durationDays < 1 || durationDays > 3650 || !Number.isInteger(maxDevices) || maxDevices < 1 || maxDevices > 100) {
+    return jsonError(c, 400, 'email, valid key, duration_days, max_devices, and a valid plan_type are required');
+  }
+
+  const currentPeriodEnd = new Date(Date.now() + durationDays * 86_400_000).toISOString();
+  try {
+    const license = await c.env.DB.prepare(
+      "INSERT INTO licenses(email, key, plan_type, status, current_period_end, max_devices, updated_at) VALUES (?, ?, ?, 'active', ?, ?, ?) RETURNING id, email, key, plan_type, status, current_period_end, max_devices, created_at, updated_at"
+    ).bind(email, key, planType as string, currentPeriodEnd, maxDevices, isoNow()).first<Record<string, unknown>>();
+    await writeAudit(c.env.DB, 'license.created', { licenseId: license?.id as number | undefined, targetType: 'license', targetId: license?.id as number | undefined, details: { email, plan_type: planType, duration_days: durationDays, max_devices: maxDevices, source: 'manual' } });
+    return c.json({ success: true, license }, 201);
+  } catch {
+    return jsonError(c, 409, 'Email atau license key sudah digunakan');
+  }
 });
 
 adminRoutes.get('/licenses/:id/activations', async (c) => {
