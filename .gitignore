@@ -12,3 +12,4 @@ build/
 !.dev.vars.example
 *.log
 logs/
+.d1-data-export.sql

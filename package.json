@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "wrangler dev",
     "start": "tsx src/node/server.ts",
+    "db:migrate": "tsx src/node/migrate.ts",
+    "db:import-d1": "tsx src/node/import-d1.ts",
     "build": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
