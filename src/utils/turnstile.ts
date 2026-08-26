@@ -8,7 +8,7 @@ export async function verifyTurnstile(token: unknown, remoteip: string | undefin
     if (remoteip) body.set('remoteip', remoteip);
     const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', body });
     if (!response.ok) return false;
-    const result = await response.json<{ success?: boolean }>();
+    const result = await response.json() as { success?: boolean };
     return result.success === true;
   } catch {
     return false;

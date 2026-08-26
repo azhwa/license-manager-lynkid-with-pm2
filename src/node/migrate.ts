@@ -1,11 +1,11 @@
 import 'dotenv/config';
-import { NodeD1Database } from './db';
+import { TursoDatabase } from './db';
 
 const databaseUrl = process.env.TURSO_DATABASE_URL?.trim();
 const authToken = process.env.TURSO_AUTH_TOKEN?.trim();
 if (!databaseUrl || !authToken) throw new Error('TURSO_DATABASE_URL and TURSO_AUTH_TOKEN are required');
 
-const database = await NodeD1Database.open(databaseUrl, authToken);
+const database = await TursoDatabase.open(databaseUrl, authToken);
 try {
   const tables = await database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all<{ name: string }>();
   const countTables = ['licenses', 'activations', 'transactions', 'product_mapping', 'webhook_logs', 'lynk_accounts', 'admin_audit_logs'] as const;

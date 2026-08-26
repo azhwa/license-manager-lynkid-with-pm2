@@ -2,35 +2,29 @@
 
 Backend License Manager
 
-Backend Cloudflare Workers + Hono untuk license manager Android/web sesuai `license-manager-spec-revised.md`.
+Backend Node.js + Hono untuk license manager Android/web dengan Turso/libSQL sebagai database.
 
 Backend juga menyediakan runtime Node.js untuk deploy di VPS melalui PM2. Panduan deploy VPS + Cloudflare Tunnel ada di [`DEPLOY-VPS.md`](DEPLOY-VPS.md).
-
-Frontend SvelteKit tersedia di folder `frontend/` dan menggunakan desain Stitch yang disimpan di `stitch-assets/`.
 
 ## Menjalankan lokal
 
 ```bash
 npm install
-npm run db:local
+npm run db:migrate
 npm run dev
 ```
 
-Untuk menjalankan frontend di terminal kedua:
+Untuk runtime Node/PM2, isi `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `JWT_SECRET`, dan `MERCHANT_CONFIG_ENCRYPTION_KEY` di `.env`. `LYNK_MERCHANT_KEY` tetap didukung sebagai fallback untuk webhook lama.
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Untuk runtime Node/PM2, isi `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `JWT_SECRET`, dan `MERCHANT_CONFIG_ENCRYPTION_KEY` di `.env` pada VPS. `LYNK_MERCHANT_KEY` tetap didukung sebagai fallback untuk webhook lama. Untuk deployment Worker Cloudflare, secret tetap dapat diatur dengan `wrangler secret put`. Untuk development lokal Worker, salin `.dev.vars.example` menjadi `.dev.vars` lalu isi nilainya.
-
-Salin `.env.example` dan `frontend/.env.example` sebagai referensi konfigurasi. Jangan simpan `.env` atau secret Worker di source control.
+Salin `.env.example` sebagai referensi konfigurasi. Jangan simpan `.env` atau token Turso di source control.
 
 `TURNSTILE_ENABLED=false` membuat endpoint check dan login admin bisa dipakai lokal tanpa token. Di production, set `TURNSTILE_ENABLED=true` dan `TURNSTILE_SECRET_KEY`. Frontend production juga harus memiliki `PUBLIC_TURNSTILE_SITE_KEY`.
 
-Pada runtime Node/PM2, validasi lisensi selalu membaca Turso secara langsung. Cache memory hanya digunakan untuk rate limit dan akan reset ketika proses PM2 restart.
+Pada runtime Node/PM2, validasi lisensi selalu membaca Turso secara langsung tanpa cache response. Cache memory hanya digunakan untuk rate limit dan akan reset ketika proses PM2 restart.
+
+Gunakan `/health` untuk liveness process dan `/health/ready` untuk memastikan koneksi Turso tersedia.
+
+Smoke test bersifat write dan memerlukan `SMOKE_TEST_ALLOW_WRITE=true` secara eksplisit.
 
 Batas device ditentukan oleh `max_devices` pada product mapping; tidak ada lagi batas global dari environment.
 
@@ -53,8 +47,8 @@ Batas device ditentukan oleh `max_devices` pada product mapping; tidak ada lagi 
 ## Verifikasi lokal end-to-end
 
 ```bash
-npm run db:local
-npm run dev -- --local
+npm run db:migrate
+npm run dev
 ```
 
 Alur webhook → check → activate → validate dapat diuji dengan payload Lynk.id sesuai contoh di spesifikasi.

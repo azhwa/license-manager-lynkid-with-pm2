@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { createClient, type Client, type InStatement, type InValue, type Row } from '@libsql/client';
+import { createClient, type Client, type InStatement, type Row } from '@libsql/client';
+import type { DatabaseBinding, DatabaseValue, PreparedStatementBinding } from '../types';
 
-type BoundValue = InValue;
+type BoundValue = DatabaseValue;
 
 function rowAsObject(row: Row): Record<string, unknown> {
-  // libSQL rows expose named properties, matching the object shape returned by D1.
+  // libSQL rows expose named properties, matching the object shape used by routes.
   return row as unknown as Record<string, unknown>;
 }
 
@@ -69,15 +70,41 @@ async function ensureCurrentSchema(client: Client): Promise<void> {
   }
 }
 
-export class NodeD1PreparedStatement {
+async function runSchemaMigrations(client: Client): Promise<void> {
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS app_schema_migrations (
+      version INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  const migrations: Array<{ version: number; name: string; apply: (database: Client) => Promise<void> }> = [
+    { version: 1, name: 'baseline-current-schema', apply: ensureCurrentSchema },
+  ];
+  for (const migration of migrations) {
+    const applied = await client.execute({
+      sql: 'SELECT version FROM app_schema_migrations WHERE version = ?',
+      args: [migration.version],
+    });
+    if (applied.rows.length) continue;
+    await migration.apply(client);
+    await client.execute({
+      sql: 'INSERT OR IGNORE INTO app_schema_migrations(version, name) VALUES (?, ?)',
+      args: [migration.version, migration.name],
+    });
+  }
+}
+
+export class TursoPreparedStatement implements PreparedStatementBinding {
   constructor(
     private readonly client: Client,
     private readonly sql: string,
     private readonly values: BoundValue[] = [],
   ) {}
 
-  bind(...values: BoundValue[]): NodeD1PreparedStatement {
-    return new NodeD1PreparedStatement(this.client, this.sql, values);
+  bind(...values: BoundValue[]): TursoPreparedStatement {
+    return new TursoPreparedStatement(this.client, this.sql, values);
   }
 
   toInStatement(): InStatement {
@@ -105,54 +132,32 @@ export class NodeD1PreparedStatement {
   }
 }
 
-export class NodeD1Database {
+export class TursoDatabase implements DatabaseBinding {
   private constructor(private readonly client: Client) {}
 
-  static async open(url: string, authToken: string): Promise<NodeD1Database> {
+  static async open(url: string, authToken: string): Promise<TursoDatabase> {
     const client = createClient({ url, authToken, intMode: 'number', readYourWrites: true, concurrency: 8 });
     try {
       const schemaPath = resolve(process.cwd(), 'src/db/schema.sql');
       await client.executeMultiple(readFileSync(schemaPath, 'utf8'));
-      await ensureCurrentSchema(client);
-      return new NodeD1Database(client);
+      await runSchemaMigrations(client);
+      return new TursoDatabase(client);
     } catch (error) {
       client.close();
       throw error;
     }
   }
 
-  prepare(sql: string): NodeD1PreparedStatement {
-    return new NodeD1PreparedStatement(this.client, sql);
+  prepare(sql: string): TursoPreparedStatement {
+    return new TursoPreparedStatement(this.client, sql);
   }
 
-  async batch(statements: NodeD1PreparedStatement[]): Promise<unknown[]> {
+  async batch(statements: TursoPreparedStatement[]): Promise<unknown[]> {
     await this.client.batch(statements.map((statement) => statement.toInStatement()), 'write');
     return [];
   }
 
   close(): void {
     this.client.close();
-  }
-}
-
-export class MemoryKVNamespace {
-  private readonly values = new Map<string, { value: string; expiresAt: number | null }>();
-
-  async get(key: string, type?: 'text' | 'json'): Promise<unknown> {
-    const entry = this.values.get(key);
-    if (!entry || (entry.expiresAt !== null && entry.expiresAt <= Date.now())) {
-      this.values.delete(key);
-      return null;
-    }
-    return type === 'json' ? JSON.parse(entry.value) : entry.value;
-  }
-
-  async put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void> {
-    const ttl = options?.expirationTtl;
-    this.values.set(key, { value, expiresAt: ttl ? Date.now() + ttl * 1000 : null });
-  }
-
-  async delete(key: string): Promise<void> {
-    this.values.delete(key);
   }
 }

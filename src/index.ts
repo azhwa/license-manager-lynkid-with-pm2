@@ -20,6 +20,15 @@ app.use('*', async (c, next) => {
 });
 app.get('/', (c) => c.json({ name: 'License Manager API', version: '0.1.0', status: 'ok' }));
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }));
+app.get('/health/ready', async (c) => {
+  try {
+    await c.env.DB.prepare('SELECT 1 AS ok').first<{ ok: number }>();
+    return c.json({ status: 'ok', database: 'ok', timestamp: new Date().toISOString() });
+  } catch (error) {
+    console.error('Readiness check failed', error);
+    return c.json({ status: 'error', database: 'unavailable', timestamp: new Date().toISOString() }, 503);
+  }
+});
 app.route('/admin', authRoutes);
 app.route('/admin', adminRoutes);
 app.route('/license', licenseRoutes);
@@ -31,11 +40,4 @@ export async function runMaintenance(env: AppContext['Bindings']): Promise<void>
   await env.DB.prepare("UPDATE licenses SET status = 'expired', updated_at = CURRENT_TIMESTAMP WHERE status = 'active' AND current_period_end <= CURRENT_TIMESTAMP").run();
   await env.DB.prepare("DELETE FROM webhook_logs WHERE created_at < datetime('now', '-30 days')").run();
 }
-
-export default {
-  fetch: app.fetch,
-  async scheduled(_event: ScheduledEvent, env: AppContext['Bindings'], _ctx: ExecutionContext) {
-    await runMaintenance(env);
-  }
-};
 export { app };

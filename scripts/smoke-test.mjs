@@ -3,11 +3,12 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 
 const baseUrl = (process.env.API_URL || 'http://127.0.0.1:8787').replace(/\/$/, '');
-const localEnv = Object.assign({}, ...['.env', '.dev.vars'].filter((file) => fs.existsSync(file)).map((file) => Object.fromEntries(fs.readFileSync(file, 'utf8').split(/\r?\n/).filter((line) => line && !line.trimStart().startsWith('#') && line.includes('=')).map((line) => { const index = line.indexOf('='); return [line.slice(0, index).trim(), line.slice(index + 1).trim().replace(/^['"]|['"]$/g, '')]; }))));
+const localEnv = Object.assign({}, ...['.env'].filter((file) => fs.existsSync(file)).map((file) => Object.fromEntries(fs.readFileSync(file, 'utf8').split(/\r?\n/).filter((line) => line && !line.trimStart().startsWith('#') && line.includes('=')).map((line) => { const index = line.indexOf('='); return [line.slice(0, index).trim(), line.slice(index + 1).trim().replace(/^['"]|['"]$/g, '')]; }))));
 const merchantKey = process.env.LYNK_MERCHANT_KEY || localEnv.LYNK_MERCHANT_KEY;
 const username = process.env.ADMIN_USERNAME || localEnv.ADMIN_USERNAME;
 const password = process.env.ADMIN_PASSWORD || localEnv.ADMIN_PASSWORD;
 if (!merchantKey || !username || !password) throw new Error('Set LYNK_MERCHANT_KEY, ADMIN_USERNAME, and ADMIN_PASSWORD before running smoke test');
+if (process.env.SMOKE_TEST_ALLOW_WRITE !== 'true') throw new Error('This smoke test writes real license data. Set SMOKE_TEST_ALLOW_WRITE=true explicitly.');
 const email = `smoke-${Date.now()}@example.com`;
 const messageId = `smoke-${Date.now()}`;
 

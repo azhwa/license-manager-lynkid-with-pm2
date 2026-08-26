@@ -1,7 +1,7 @@
-import type { D1Database } from '@cloudflare/workers-types';
+import type { DatabaseBinding } from '../types';
 
 export async function writeAudit(
-  db: D1Database,
+  db: DatabaseBinding,
   action: string,
   options: { licenseId?: number | null; targetType?: string; targetId?: string | number; details?: Record<string, unknown> } = {}
 ): Promise<void> {

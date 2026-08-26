@@ -1,6 +1,5 @@
-import type { D1Database, KVNamespace } from '@cloudflare/workers-types';
 import type { Env } from '../types';
-import { MemoryKVNamespace, NodeD1Database } from './db';
+import { TursoDatabase } from './db';
 
 function required(values: NodeJS.ProcessEnv, name: string): string {
   const value = values[name]?.trim();
@@ -15,10 +14,9 @@ export async function createNodeRuntime(values: NodeJS.ProcessEnv) {
 
   const databaseUrl = required(values, 'TURSO_DATABASE_URL');
   const databaseToken = required(values, 'TURSO_AUTH_TOKEN');
-  const database = await NodeD1Database.open(databaseUrl, databaseToken);
+  const database = await TursoDatabase.open(databaseUrl, databaseToken);
   const env: Env = {
-    DB: database as unknown as D1Database,
-    KV_CACHE: new MemoryKVNamespace() as unknown as KVNamespace,
+    DB: database,
     LYNK_MERCHANT_KEY: values.LYNK_MERCHANT_KEY?.trim() || undefined,
     MERCHANT_CONFIG_ENCRYPTION_KEY: required(values, 'MERCHANT_CONFIG_ENCRYPTION_KEY'),
     JWT_SECRET: required(values, 'JWT_SECRET'),

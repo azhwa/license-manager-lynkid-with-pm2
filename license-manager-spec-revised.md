@@ -1,5 +1,7 @@
 # License Manager - Spesifikasi Lengkap (Revisi)
 
+> Catatan: dokumen ini adalah rancangan historis. Deployment backend saat ini adalah Node.js + PM2 + Turso/libSQL melalui Cloudflare Tunnel; bagian Workers/D1/KV di bawah tidak lagi menjadi konfigurasi runtime.
+
 ## Ringkasan Sistem
 
 Sistem license manager untuk aplikasi Android (Kotlin) dan web (SvelteKit/Next.js) dengan model lisensi **trial** dan **berlangganan 2 bulanan**, menggunakan **Lynk.id** sebagai payment gateway dan **Cloudflare Workers** sebagai backend serverless. Frontend menggunakan **SvelteKit** untuk performa optimal dan familiarity developer.

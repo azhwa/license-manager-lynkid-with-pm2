@@ -4,16 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "tsx watch src/node/server.ts",
     "start": "tsx src/node/server.ts",
     "db:migrate": "tsx src/node/migrate.ts",
-    "db:import-d1": "tsx src/node/import-d1.ts",
     "build": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "smoke": "node scripts/smoke-test.mjs",
-    "db:local": "wrangler d1 execute license-manager-db --local --file=src/db/schema.sql && wrangler d1 migrations apply license-manager-db --local",
-    "deploy": "wrangler deploy"
+    "smoke": "node scripts/smoke-test.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",
@@ -24,10 +21,8 @@
     "ws": "^8.21.0"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20250823.0",
     "@types/node": "^22.15.30",
     "typescript": "^5.8.3",
-    "vitest": "^3.1.3",
-    "wrangler": "^4.18.0"
+    "vitest": "^3.1.3"
   }
 }

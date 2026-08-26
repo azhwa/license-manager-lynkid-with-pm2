@@ -52,21 +52,21 @@ licenseRoutes.post('/activate', async (c) => {
   const existing = await c.env.DB.prepare('SELECT id FROM activations WHERE license_id = ? AND device_hash = ?').bind(license.id, deviceHash).first<{ id: number }>();
   let slotUsed: number;
   if (existing) {
-    await c.env.DB.prepare('UPDATE activations SET last_seen = ?, platform = ?, device_name = ? WHERE id = ?').bind(isoNow(), body.platform, deviceName, existing.id).run();
+    await c.env.DB.prepare('UPDATE activations SET last_seen = ?, platform = ?, device_name = ? WHERE id = ?').bind(isoNow(), body.platform as Platform, deviceName, existing.id).run();
     slotUsed = (await c.env.DB.prepare('SELECT COUNT(*) AS count FROM activations WHERE license_id = ?').bind(license.id).first<{ count: number }>())?.count ?? 1;
   } else {
-    // The conditional INSERT is evaluated atomically by SQLite/D1, so two
+    // The conditional INSERT is evaluated atomically by SQLite/Turso, so two
     // concurrent first-time activations cannot both consume the last slot.
     const inserted = await c.env.DB.prepare(
       'INSERT OR IGNORE INTO activations(license_id, device_hash, device_name, platform) SELECT ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM activations WHERE license_id = ?) < ?'
-    ).bind(license.id, deviceHash, deviceName, body.platform, license.id, license.max_devices).run();
+    ).bind(license.id, deviceHash, deviceName, body.platform as Platform, license.id, license.max_devices).run();
     if (!inserted.meta.changes) {
       const raced = await c.env.DB.prepare('SELECT id FROM activations WHERE license_id = ? AND device_hash = ?').bind(license.id, deviceHash).first<{ id: number }>();
       if (!raced) {
         const used = (await c.env.DB.prepare('SELECT COUNT(*) AS count FROM activations WHERE license_id = ?').bind(license.id).first<{ count: number }>())?.count ?? license.max_devices;
         return jsonError(c, 409, 'Maximum device limit reached', { max_devices: license.max_devices, used_devices: used });
       }
-      await c.env.DB.prepare('UPDATE activations SET last_seen = ?, platform = ?, device_name = ? WHERE id = ?').bind(isoNow(), body.platform, deviceName, raced.id).run();
+      await c.env.DB.prepare('UPDATE activations SET last_seen = ?, platform = ?, device_name = ? WHERE id = ?').bind(isoNow(), body.platform as Platform, deviceName, raced.id).run();
     }
     slotUsed = (await c.env.DB.prepare('SELECT COUNT(*) AS count FROM activations WHERE license_id = ?').bind(license.id).first<{ count: number }>())?.count ?? 1;
   }

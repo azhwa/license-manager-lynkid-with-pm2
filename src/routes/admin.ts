@@ -87,7 +87,7 @@ adminRoutes.post('/mapping', async (c) => {
   const maxDevices = normalizeMaxDevices(body.max_devices);
   if (!titlePattern || !Number.isInteger(body.duration_days) || (body.duration_days as number) < 1 || !['trial', 'monthly', 'bimonthly', 'yearly'].includes(body.plan_type ?? '') || maxDevices === null) return jsonError(c, 400, 'title_pattern, duration_days, max_devices, and a valid plan_type are required');
   try {
-    const result = await c.env.DB.prepare('INSERT INTO product_mapping(title_pattern, duration_days, plan_type, max_devices, is_active) VALUES (?, ?, ?, ?, ?) RETURNING id, title_pattern, duration_days, plan_type, max_devices, is_active, created_at').bind(titlePattern, body.duration_days, body.plan_type, maxDevices, body.is_active === false ? 0 : 1).first<Record<string, unknown>>();
+    const result = await c.env.DB.prepare('INSERT INTO product_mapping(title_pattern, duration_days, plan_type, max_devices, is_active) VALUES (?, ?, ?, ?, ?) RETURNING id, title_pattern, duration_days, plan_type, max_devices, is_active, created_at').bind(titlePattern, body.duration_days as number, body.plan_type as string, maxDevices, body.is_active === false ? 0 : 1).first<Record<string, unknown>>();
     await writeAudit(c.env.DB, 'mapping.created', { targetType: 'mapping', targetId: result?.id as number | undefined, details: { title_pattern: titlePattern, max_devices: maxDevices } });
     return c.json({ mapping: result }, 201);
   } catch (error) { return jsonError(c, 409, 'A mapping with that title pattern already exists', String(error)); }
@@ -99,7 +99,7 @@ adminRoutes.put('/mapping/:id', async (c) => {
   const titlePattern = body.title_pattern?.trim();
   const maxDevices = normalizeMaxDevices(body.max_devices);
   if (!Number.isInteger(id) || !titlePattern || !Number.isInteger(body.duration_days) || (body.duration_days as number) < 1 || !['trial', 'monthly', 'bimonthly', 'yearly'].includes(body.plan_type ?? '') || maxDevices === null) return jsonError(c, 400, 'Invalid mapping payload');
-  const result = await c.env.DB.prepare('UPDATE product_mapping SET title_pattern = ?, duration_days = ?, plan_type = ?, max_devices = ?, is_active = ? WHERE id = ? RETURNING id, title_pattern, duration_days, plan_type, max_devices, is_active, created_at').bind(titlePattern, body.duration_days, body.plan_type, maxDevices, body.is_active === false ? 0 : 1, id).first<Record<string, unknown>>();
+  const result = await c.env.DB.prepare('UPDATE product_mapping SET title_pattern = ?, duration_days = ?, plan_type = ?, max_devices = ?, is_active = ? WHERE id = ? RETURNING id, title_pattern, duration_days, plan_type, max_devices, is_active, created_at').bind(titlePattern, body.duration_days as number, body.plan_type as string, maxDevices, body.is_active === false ? 0 : 1, id).first<Record<string, unknown>>();
   if (!result) return jsonError(c, 404, 'Mapping not found');
   await writeAudit(c.env.DB, 'mapping.updated', { targetType: 'mapping', targetId: id, details: { title_pattern: titlePattern, max_devices: maxDevices } });
   return c.json({ mapping: result });

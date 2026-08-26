@@ -53,11 +53,14 @@ Cek API dari VPS:
 
 ```bash
 curl http://127.0.0.1:3000/health
+curl http://127.0.0.1:3000/health/ready
 pm2 status
 pm2 logs license-manager-api --lines 100
 ```
 
 Respons health yang benar memiliki `status: "ok"`.
+
+`/health/ready` juga harus mengembalikan `database: "ok"`; endpoint ini memastikan koneksi Turso benar-benar tersedia.
 
 ## 3. Cloudflare Tunnel
 
@@ -91,6 +94,14 @@ pm2 restart license-manager-api --update-env
 pm2 logs license-manager-api
 sudo systemctl status cloudflared
 ```
+
+Smoke test membuat data uji di database. Jalankan hanya jika memang diinginkan:
+
+```bash
+SMOKE_TEST_ALLOW_WRITE=true API_URL=https://api.example.com npm run smoke
+```
+
+Payload webhook Lynk.id sengaja tidak diberi batas ukuran body di aplikasi agar perubahan field atau payload tambahan tidak ditolak.
 
 Gunakan satu instance PM2 (`instances: 1`). Database production berada di Turso/libSQL, sehingga data tidak hilang saat proses PM2 restart dan tidak ada file database lokal yang perlu dikelola di VPS. Backup dan point-in-time recovery dikelola dari sisi Turso.
 

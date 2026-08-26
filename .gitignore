@@ -7,9 +7,6 @@ build/
 .env
 .env.*
 !.env.example
-.dev.vars
-.dev.vars.*
-!.dev.vars.example
 *.log
 logs/
 .d1-data-export.sql

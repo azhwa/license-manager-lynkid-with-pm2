@@ -1,12 +1,23 @@
-import type { D1Database, KVNamespace } from '@cloudflare/workers-types';
-
 export type PlanType = 'trial' | 'monthly' | 'bimonthly' | 'yearly';
 export type LicenseStatus = 'active' | 'expired' | 'revoked';
 export type Platform = 'android' | 'web';
 
+export type DatabaseValue = string | number | bigint | Uint8Array | null | boolean | Date;
+
+export interface PreparedStatementBinding {
+  bind(...values: DatabaseValue[]): PreparedStatementBinding;
+  first<T>(): Promise<T | null>;
+  all<T>(): Promise<{ results: T[] }>;
+  run(): Promise<{ meta: { changes: number; last_row_id: number } }>;
+}
+
+export interface DatabaseBinding {
+  prepare(sql: string): PreparedStatementBinding;
+  batch(statements: PreparedStatementBinding[]): Promise<unknown[]>;
+}
+
 export interface Env {
-  DB: D1Database;
-  KV_CACHE: KVNamespace;
+  DB: DatabaseBinding;
   LYNK_MERCHANT_KEY?: string;
   MERCHANT_CONFIG_ENCRYPTION_KEY?: string;
   JWT_SECRET: string;
