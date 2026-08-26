@@ -14,8 +14,10 @@ export const webhookRoutes = new Hono<AppContext>();
 
 async function handleWebhook(c: Context<AppContext>, accountSlug?: string) {
   const rawPayload = await c.req.text();
+  if (!rawPayload.trim()) return c.json({ success: true, message: 'Webhook endpoint reachable' });
   let payload: LynkPayload;
   try { payload = JSON.parse(rawPayload) as LynkPayload; } catch { return jsonError(c, 400, 'Invalid JSON payload'); }
+  if (!payload.event && !payload.data) return c.json({ success: true, message: 'Webhook endpoint reachable' });
   const data = payload.data?.message_data;
   if (payload.event === 'webhook.test' || payload.event === 'test' || data?.message_action === 'TEST') {
     return c.json({ success: true, message: 'Webhook test received' });
@@ -91,6 +93,8 @@ async function handleWebhook(c: Context<AppContext>, accountSlug?: string) {
   }
 }
 
+webhookRoutes.get('/lynkid/:slug', (c) => c.json({ success: true, message: 'Webhook endpoint reachable' }));
 webhookRoutes.post('/lynkid/:slug', (c) => handleWebhook(c, c.req.param('slug')));
 // Backward compatible route for the legacy LYNK_MERCHANT_KEY secret.
+webhookRoutes.get('/lynkid', (c) => c.json({ success: true, message: 'Webhook endpoint reachable' }));
 webhookRoutes.post('/lynkid', (c) => handleWebhook(c));
