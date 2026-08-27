@@ -112,5 +112,5 @@ CREATE TABLE IF NOT EXISTS webhook_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_webhook_logs_message_id ON webhook_logs(message_id);
 
-INSERT OR IGNORE INTO product_mapping(title_pattern, duration_days, plan_type, is_trial)
-VALUES ('Aplikasi Autogas 2 Bulan', 60, 'bimonthly', 0);
+INSERT OR IGNORE INTO product_mapping(title_pattern, duration_days, plan_type)
+VALUES ('Aplikasi Autogas 2 Bulan', 60, 'bimonthly');
