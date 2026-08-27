@@ -573,6 +573,41 @@ Rate limit: maksimal 20 request per menit per IP.
 
 Jika transaksi tidak ditemukan, response tetap `200` dengan `licenses: []`.
 
+### POST `/license/lookup`
+
+Mencari license berdasarkan email customer. Pencocokan email tidak membedakan huruf besar-kecil.
+
+Endpoint ini tidak membutuhkan JWT admin dan dibatasi maksimal 20 request per menit per IP.
+
+**Request JSON**
+
+```json
+{
+  "email": "customer@example.com"
+}
+```
+
+**Response `200 OK` jika ditemukan**
+
+```json
+{
+  "license": {
+    "refId": "customer@example.com",
+    "name": "Budi Santoso",
+    "license_key": "AUTO-ABCD-EFGH-IJKL",
+    "access_type": "paid",
+    "is_trial": false,
+    "trial_ends_at": null,
+    "status": "active",
+    "current_period_end": "2026-09-25T12:00:00.000Z",
+    "days_remaining": 30,
+    "plan_type": "Premium VIP"
+  }
+}
+```
+
+Jika email tidak ditemukan, response tetap `200` dengan `license: null`.
+
 ### POST `/license/activate`
 
 Mengikat license ke device. Endpoint ini idempotent untuk device yang sama: jika device sudah terdaftar, `last_seen` akan diperbarui.

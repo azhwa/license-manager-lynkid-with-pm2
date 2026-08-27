@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { AppContext, LicenseRecord, Platform } from '../types';
 import { findLicenseByEmail, findLicenseByKey } from '../db/queries';
-import { daysRemaining, isActive, jsonError, isoNow } from '../utils/http';
+import { daysRemaining, isActive, jsonError, isoNow, normalizeEmail } from '../utils/http';
 import { verifyTurnstile } from '../utils/turnstile';
 import { signJwt } from '../utils/jwt';
 import { checkRateLimit, createRateLimit } from '../middleware/rate-limit';
@@ -9,6 +9,7 @@ import { writeAudit } from '../utils/audit';
 
 export const licenseRoutes = new Hono<AppContext>();
 licenseRoutes.use('/check', checkRateLimit);
+licenseRoutes.use('/lookup', createRateLimit({ scope: 'license-lookup', maxRequests: 20, windowSeconds: 60 }));
 licenseRoutes.use('/activate', createRateLimit({ scope: 'license-activate', maxRequests: 20, windowSeconds: 60 }));
 licenseRoutes.use('/unbind', createRateLimit({ scope: 'license-unbind', maxRequests: 20, windowSeconds: 60 }));
 
@@ -40,6 +41,15 @@ licenseRoutes.post('/check', async (c) => {
   const transaction = await c.env.DB.prepare('SELECT email, refId FROM transactions WHERE refId = ? ORDER BY created_at DESC LIMIT 1').bind(refId).first<{ email: string; refId: string }>();
   const license = transaction ? await findLicenseByEmail(c.env.DB, transaction.email) : null;
   return c.json({ licenses: license && transaction ? [publicLicense(license, transaction.refId)] : [] });
+});
+
+licenseRoutes.post('/lookup', async (c) => {
+  const body = await c.req.json<{ email?: string }>().catch(() => ({} as { email?: string }));
+  const email = normalizeEmail(body.email);
+  if (!email) return jsonError(c, 400, 'A valid email is required');
+
+  const license = await findLicenseByEmail(c.env.DB, email);
+  return c.json({ license: license ? publicLicense(license, email) : null });
 });
 
 licenseRoutes.post('/activate', async (c) => {
