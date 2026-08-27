@@ -17,6 +17,7 @@ export async function createNodeRuntime(values: NodeJS.ProcessEnv) {
   const database = await TursoDatabase.open(databaseUrl, databaseToken);
   const env: Env = {
     DB: database,
+    APP_TIMEZONE: values.APP_TIMEZONE?.trim() || 'UTC',
     LYNK_MERCHANT_KEY: values.LYNK_MERCHANT_KEY?.trim() || undefined,
     MERCHANT_CONFIG_ENCRYPTION_KEY: required(values, 'MERCHANT_CONFIG_ENCRYPTION_KEY'),
     JWT_SECRET: required(values, 'JWT_SECRET'),

@@ -8,7 +8,7 @@ if (!databaseUrl || !authToken) throw new Error('TURSO_DATABASE_URL and TURSO_AU
 const database = await TursoDatabase.open(databaseUrl, authToken);
 try {
   const tables = await database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all<{ name: string }>();
-  const countTables = ['licenses', 'activations', 'transactions', 'product_mapping', 'webhook_logs', 'lynk_accounts', 'admin_audit_logs'] as const;
+  const countTables = ['licenses', 'activations', 'transactions', 'trial_claims', 'banned_accounts', 'product_mapping', 'webhook_logs', 'lynk_accounts', 'admin_audit_logs'] as const;
   const counts = await Promise.all(countTables.map(async (table) => [table, (await database.prepare(`SELECT COUNT(*) AS count FROM ${table}`).first<{ count: number }>())?.count ?? 0] as const));
   console.log(JSON.stringify({
     migrated: true,

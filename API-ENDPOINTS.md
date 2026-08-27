@@ -26,6 +26,8 @@ Authorization: Bearer <admin_jwt>
 - JWT admin berlaku selama 8 jam.
 - Nilai `plan_type` adalah teks bebas maksimal 50 karakter. Kapitalisasi dipertahankan, misalnya `Premium VIP`, `PREMIUM`, atau `premium`.
 - `device_hash` harus berupa SHA-256 hex lowercase/uppercase dengan panjang 64 karakter. Server menormalisasikannya menjadi lowercase.
+- Timestamp yang dikirim API menggunakan ISO-8601 dengan zona UTC (`Z`). Timestamp internal SQLite seperti `created_at` dan `last_seen` juga diperlakukan sebagai UTC saat ditampilkan.
+- Runtime backend memakai `APP_TIMEZONE` untuk menafsirkan input tanggal tanpa jam, misalnya `Asia/Jakarta`.
 
 ---
 
@@ -226,6 +228,7 @@ Product mapping menghubungkan judul produk Lynk.id dengan durasi license, plan t
       "duration_days": 60,
       "plan_type": "Premium VIP",
       "max_devices": 2,
+      "is_trial": 0,
       "is_active": 1,
       "created_at": "2026-08-26 12:00:00"
     }
@@ -245,6 +248,7 @@ Membuat product mapping baru.
   "duration_days": 60,
   "plan_type": "Premium VIP",
   "max_devices": 2,
+  "is_trial": false,
   "is_active": true
 }
 ```
@@ -261,6 +265,7 @@ Ketentuan: `duration_days` minimal 1, `max_devices` antara 1 sampai 100, dan `pl
     "duration_days": 60,
     "plan_type": "Premium VIP",
     "max_devices": 2,
+    "is_trial": 0,
     "is_active": 1,
     "created_at": "2026-08-26 12:00:00"
   }
@@ -279,6 +284,7 @@ Mengubah product mapping.
   "duration_days": 60,
   "plan_type": "PREMIUM_2M",
   "max_devices": 3,
+  "is_trial": false,
   "is_active": true
 }
 ```
@@ -315,8 +321,10 @@ Mengambil maksimal 100 license terbaru. Bisa difilter berdasarkan email.
     {
       "id": 10,
       "email": "customer@example.com",
+      "name": "Budi Santoso",
       "key": "AUTO-ABCD-EFGH-IJKL",
       "plan_type": "Premium VIP",
+      "access_type": "paid",
       "status": "active",
       "current_period_end": "2026-09-25T12:00:00.000Z",
       "trial_ends_at": null,
@@ -338,6 +346,7 @@ Membuat license secara manual. Jika `key` dikosongkan, server membuat key otomat
 ```json
 {
   "email": "customer@example.com",
+  "name": "Budi Santoso",
   "key": "AUTO-ABCD-EFGH-IJKL",
   "plan_type": "Premium VIP",
   "duration_days": 30,
@@ -355,6 +364,7 @@ Membuat license secara manual. Jika `key` dikosongkan, server membuat key otomat
   "license": {
     "id": 10,
     "email": "customer@example.com",
+    "name": "Budi Santoso",
     "key": "AUTO-ABCD-EFGH-IJKL",
     "plan_type": "Premium VIP",
     "status": "active",
@@ -368,13 +378,14 @@ Membuat license secara manual. Jika `key` dikosongkan, server membuat key otomat
 
 ### PUT `/admin/licenses/:id`
 
-Mengubah data license manual yang sudah ada. License key tidak diubah agar aplikasi client tetap menggunakan key yang sama.
+Mengubah data license manual yang sudah ada. License key tidak diubah agar aplikasi client tetap menggunakan key yang sama. `name` bersifat opsional.
 
 **Request JSON**
 
 ```json
 {
   "email": "customer@example.com",
+  "name": "Budi Santoso",
   "plan_type": "PREMIUM VIP",
   "expires_at": "2026-10-25",
   "max_devices": 3
@@ -382,6 +393,8 @@ Mengubah data license manual yang sudah ada. License key tidak diubah agar aplik
 ```
 
 `expires_at` dapat berupa tanggal `YYYY-MM-DD` atau timestamp ISO-8601. Jika berupa tanggal saja, masa berlaku dihitung sampai akhir tanggal tersebut. `max_devices` tidak boleh lebih kecil dari jumlah device yang sedang aktif.
+
+License berbayar tidak dapat diubah menjadi Trial melalui endpoint edit.
 
 **Response `200 OK`**
 
@@ -391,6 +404,7 @@ Mengubah data license manual yang sudah ada. License key tidak diubah agar aplik
   "license": {
     "id": 10,
     "email": "customer@example.com",
+    "name": "Budi Santoso",
     "key": "AUTO-ABCD-EFGH-IJKL",
     "plan_type": "PREMIUM VIP",
     "status": "active",
@@ -404,6 +418,24 @@ Mengubah data license manual yang sudah ada. License key tidak diubah agar aplik
 ```
 
 Jika `max_devices` lebih kecil dari device aktif, endpoint mengembalikan `409 Conflict` agar device tidak melebihi batas.
+
+### DELETE `/admin/licenses/:id`
+
+Menghapus license dan activation device-nya. Histori transaksi, Trial claim, dan blocklist account tetap disimpan. License yang sedang dibanned harus di-unban terlebih dahulu.
+
+### POST `/admin/licenses/:id/ban`
+
+Memasukkan email dan nomor telepon license ke blocklist. License menjadi tidak valid dan pembelian berikutnya dari identitas tersebut tidak akan membuat license baru.
+
+**Request JSON opsional**
+
+```json
+{ "reason": "Pelanggaran kebijakan penggunaan" }
+```
+
+### POST `/admin/licenses/:id/unban`
+
+Menghapus account dari blocklist dan mengaktifkan kembali kemungkinan pembelian. Status license yang tersimpan tetap mengikuti status sebelum ban.
 
 ### GET `/admin/licenses/:id/activations`
 
@@ -525,7 +557,11 @@ Rate limit: maksimal 20 request per menit per IP.
   "licenses": [
     {
       "refId": "ORDER-20260826-ABC123",
+      "name": "Budi Santoso",
       "license_key": "AUTO-ABCD-EFGH-IJKL",
+      "access_type": "paid",
+      "is_trial": false,
+      "trial_ends_at": null,
       "status": "active",
       "current_period_end": "2026-09-25T12:00:00.000Z",
       "days_remaining": 30,
@@ -562,6 +598,10 @@ Rate limit: maksimal 20 request per menit per IP.
 {
   "success": true,
   "message": "Device activated successfully",
+  "name": "Budi Santoso",
+  "access_type": "paid",
+  "is_trial": false,
+  "trial_ends_at": null,
   "device_slot_used": 1,
   "max_devices": 2,
   "expires_at": "2026-09-25T12:00:00.000Z",
@@ -620,6 +660,10 @@ Memvalidasi license dan memastikan device sudah ter-bind.
 ```json
 {
   "valid": true,
+  "name": "Budi Santoso",
+  "access_type": "paid",
+  "is_trial": false,
+  "trial_ends_at": null,
   "status": "active",
   "expires_at": "2026-09-25T12:00:00.000Z",
   "days_remaining": 30,
@@ -741,11 +785,16 @@ Field minimal yang dibutuhkan backend:
 
 `grandTotal` dapat berupa angka atau string angka.
 
+`customer.name` disimpan ke license dan ditampilkan pada lookup publik serta dashboard admin. Field ini opsional untuk menjaga kompatibilitas payload lama.
+
+Product mapping dengan `is_trial: true` hanya dapat memberikan satu Trial per email atau nomor telepon yang sudah dinormalisasi. Pembelian Trial berikutnya diakui dengan `200 OK`, tetapi tidak memperpanjang license dan mengembalikan `granted: false` serta `reason: trial_already_used`.
+
 **Response transaksi berhasil `200 OK`**
 
 ```json
 {
   "success": true,
+  "granted": true,
   "account": "autogas-store",
   "license_key": "AUTO-ABCD-EFGH-IJKL",
   "renewal_type": "new",
@@ -753,7 +802,17 @@ Field minimal yang dibutuhkan backend:
 }
 ```
 
-Kemungkinan nilai `renewal_type`: `new`, `stacked`, atau `reactivated`.
+Kemungkinan nilai `renewal_type`: `new`, `stacked`, `reactivated`, atau `converted` saat Trial berubah menjadi paket berbayar.
+
+Jika email atau nomor telepon customer sudah pernah memakai Trial, webhook tetap diakui dengan `200 OK`, tetapi tidak membuat atau memperpanjang license:
+
+```json
+{
+  "success": true,
+  "granted": false,
+  "reason": "trial_already_used"
+}
+```
 
 **Response duplicate `200 OK`**
 

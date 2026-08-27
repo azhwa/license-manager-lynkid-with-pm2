@@ -18,6 +18,7 @@ export interface DatabaseBinding {
 
 export interface Env {
   DB: DatabaseBinding;
+  APP_TIMEZONE?: string;
   LYNK_MERCHANT_KEY?: string;
   MERCHANT_CONFIG_ENCRYPTION_KEY?: string;
   JWT_SECRET: string;
@@ -49,11 +50,18 @@ export interface LynkPayload {
 export interface LicenseRecord {
   id: number;
   email: string;
+  name: string | null;
+  phone: string | null;
   key: string;
   plan_type: PlanType;
+  access_type: 'trial' | 'paid';
   status: LicenseStatus;
+  is_banned: number;
   current_period_end: string | null;
+  trial_started_at: string | null;
   trial_ends_at: string | null;
+  trial_used_at: string | null;
+  converted_at: string | null;
   max_devices: number;
   created_at: string;
   updated_at: string;

@@ -40,7 +40,7 @@ try {
   for (const [index, mapping] of mappings.entries()) {
     const messageId = `entitlement-${runId}-${index}`;
     const refId = `entitlement-ref-${runId}-${index}`;
-    const payload = { event: 'payment.received', data: { message_action: 'SUCCESS', message_code: '0', message_data: { customer: { email }, items: [{ title: mapping.title_pattern, price: 10000, qty: 1 }], refId, totals: { grandTotal: 10000 }, message_id: messageId } } };
+    const payload = { event: 'payment.received', data: { message_action: 'SUCCESS', message_code: '0', message_data: { customer: { name: `Smoke Customer ${runId}`, email }, items: [{ title: mapping.title_pattern, price: 10000, qty: 1 }], refId, totals: { grandTotal: 10000 }, message_id: messageId } } };
     const rawPayload = JSON.stringify(payload);
     const signature = crypto.createHash('sha256').update(`10000${refId}${messageId}${merchantKey}`).digest('hex');
     const webhook = await call('/webhook/lynkid', { method: 'POST', headers: { 'X-Lynk-Signature': signature }, body: rawPayload });

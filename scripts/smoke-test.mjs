@@ -39,7 +39,7 @@ const payload = {
     message_action: 'SUCCESS',
     message_code: '0',
     message_data: {
-      customer: { email },
+      customer: { name: 'Smoke Test Customer', email },
       items: [{ title: 'Aplikasi Autogas 2 Bulan', price: 50000, qty: 1 }],
       refId: `ref-${messageId}`,
       totals: { grandTotal: 50000 }
@@ -56,6 +56,7 @@ assert.equal(webhook.body.success, true);
 const check = await call('/license/check', { method: 'POST', body: JSON.stringify({ ref_id: `ref-${messageId}` }) });
 assert.equal(check.response.status, 200);
 assert.equal(check.body.licenses.length, 1);
+assert.equal(check.body.licenses[0].name, 'Smoke Test Customer');
 const key = check.body.licenses[0].license_key;
 const deviceHash = (suffix) => crypto.createHash('sha256').update(`${messageId}:${suffix}`).digest('hex');
 

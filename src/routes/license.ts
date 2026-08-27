@@ -26,8 +26,10 @@ function normalizeDeviceName(value: unknown): string | null {
 }
 
 function publicLicense(license: LicenseRecord, refId = license.email, now = new Date()) {
-  const active = isActive(license.current_period_end, license.status, now);
-  return { refId, license_key: license.key, status: active ? 'active' : license.status === 'revoked' ? 'revoked' : 'expired', current_period_end: license.current_period_end, days_remaining: daysRemaining(license.current_period_end, now), plan_type: license.plan_type };
+  const active = !license.is_banned && isActive(license.current_period_end, license.status, now);
+  const isTrial = license.access_type === 'trial' || license.plan_type.trim().toLowerCase() === 'trial';
+  const status = license.is_banned ? 'banned' : active ? 'active' : license.status === 'revoked' ? 'revoked' : 'expired';
+  return { refId, name: license.name, license_key: license.key, status, current_period_end: license.current_period_end, days_remaining: daysRemaining(license.current_period_end, now), plan_type: license.plan_type, access_type: isTrial ? 'trial' : 'paid', is_trial: isTrial, trial_ends_at: license.trial_ends_at };
 }
 
 licenseRoutes.post('/check', async (c) => {
@@ -50,7 +52,7 @@ licenseRoutes.post('/activate', async (c) => {
   if (!c.env.JWT_SECRET) return jsonError(c, 500, 'JWT_SECRET is not configured');
   const license = await findLicenseByKey(c.env.DB, key);
   if (!license) return jsonError(c, 404, 'License not found');
-  if (!isActive(license.current_period_end, license.status)) return jsonError(c, 403, 'License is not active');
+  if (license.is_banned || !isActive(license.current_period_end, license.status)) return jsonError(c, 403, 'License is not active');
   const existing = await c.env.DB.prepare('SELECT id FROM activations WHERE license_id = ? AND device_hash = ?').bind(license.id, deviceHash).first<{ id: number }>();
   let slotUsed: number;
   if (existing) {
@@ -74,7 +76,7 @@ licenseRoutes.post('/activate', async (c) => {
   }
   const now = Math.floor(Date.now() / 1000);
   const token = await signJwt({ sub: license.key, role: 'license', device_hash: deviceHash, iat: now, exp: now + 24 * 60 * 60 }, c.env.JWT_SECRET);
-  return c.json({ success: true, message: 'Device activated successfully', device_slot_used: slotUsed, max_devices: license.max_devices, expires_at: license.current_period_end, token });
+  return c.json({ success: true, message: 'Device activated successfully', name: license.name, access_type: license.access_type, is_trial: license.access_type === 'trial', trial_ends_at: license.trial_ends_at, device_slot_used: slotUsed, max_devices: license.max_devices, expires_at: license.current_period_end, token });
 });
 
 licenseRoutes.post('/unbind', async (c) => {
@@ -105,8 +107,9 @@ licenseRoutes.get('/validate', async (c) => {
   const license = await findLicenseByKey(c.env.DB, key);
   if (!license) return c.json({ valid: false, status: 'not_found', expires_at: null, days_remaining: 0 });
   const activation = await c.env.DB.prepare('SELECT id FROM activations WHERE license_id = ? AND device_hash = ?').bind(license.id, deviceHash).first<{ id: number }>();
-  const active = Boolean(activation) && isActive(license.current_period_end, license.status);
-  const response = { valid: active, status: active ? 'active' : license.status === 'revoked' ? 'revoked' : 'expired', expires_at: license.current_period_end, days_remaining: daysRemaining(license.current_period_end), plan_type: license.plan_type };
+  const active = Boolean(activation) && !license.is_banned && isActive(license.current_period_end, license.status);
+  const status = license.is_banned ? 'banned' : active ? 'active' : license.status === 'revoked' ? 'revoked' : 'expired';
+  const response = { valid: active, name: license.name, access_type: license.access_type, is_trial: license.access_type === 'trial', trial_ends_at: license.trial_ends_at, status, expires_at: license.current_period_end, days_remaining: daysRemaining(license.current_period_end), plan_type: license.plan_type };
   if (activation) await c.env.DB.prepare('UPDATE activations SET last_seen = ? WHERE id = ?').bind(isoNow(), activation.id).run();
   return c.json(response);
 });
