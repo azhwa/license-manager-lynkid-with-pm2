@@ -6,4 +6,9 @@ export function formatLicenseKey(bytes: Uint8Array): string {
   return output.match(/.{1,4}/g)?.join('-') ?? '';
 }
 
+export function maskLicenseKey(key: string): string {
+  if (!key || key.length <= 8) return '****';
+  return `${key.slice(0, 4)}-****-****-${key.slice(-4)}`;
+}
+
 export function generateLicenseKey(): string { return formatLicenseKey(crypto.getRandomValues(new Uint8Array(16))); }

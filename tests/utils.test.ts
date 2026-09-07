@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatLicenseKey } from '../src/utils/license-key';
+import { formatLicenseKey, maskLicenseKey } from '../src/utils/license-key';
 import { daysRemaining, endOfDayInTimezone, isActive, normalizeCustomerName, normalizePhone, parseTimestamp } from '../src/utils/http';
 import { signJwt, verifyJwt } from '../src/utils/jwt';
 import { sha256Hex } from '../src/utils/signature';
@@ -8,6 +8,10 @@ import { resolveMaxDevices } from '../src/utils/entitlement';
 
 describe('license utilities', () => {
   it('formats a license key in four groups', () => expect(formatLicenseKey(new Uint8Array(16))).toMatch(/^[A-Z2-9]{4}(-[A-Z2-9]{4}){3}$/));
+  it('masks license keys for safe lookups', () => {
+    expect(maskLicenseKey('A1B2-C3D4-E5F6-G7H8')).toBe('A1B2-****-****-G7H8');
+    expect(maskLicenseKey('SHORT')).toBe('****');
+  });
   it('calculates remaining days rounded up', () => expect(daysRemaining('2026-08-25T00:00:00.000Z', new Date('2026-08-24T12:00:00.000Z'))).toBe(1));
   it('treats SQLite timestamps without a timezone as UTC', () => {
     const parsed = parseTimestamp('2026-08-27 00:00:00');

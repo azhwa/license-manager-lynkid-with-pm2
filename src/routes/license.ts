@@ -6,6 +6,7 @@ import { verifyTurnstile } from '../utils/turnstile';
 import { signJwt } from '../utils/jwt';
 import { checkRateLimit, createRateLimit } from '../middleware/rate-limit';
 import { writeAudit } from '../utils/audit';
+import { maskLicenseKey } from '../utils/license-key';
 
 export const licenseRoutes = new Hono<AppContext>();
 licenseRoutes.use('/check', checkRateLimit);
@@ -26,11 +27,22 @@ function normalizeDeviceName(value: unknown): string | null {
   return normalized ? normalized.slice(0, 100) : null;
 }
 
-function publicLicense(license: LicenseRecord, refId = license.email, now = new Date()) {
+function publicLicense(license: LicenseRecord, refId = license.email, now = new Date(), maskKey = false) {
   const active = !license.is_banned && isActive(license.current_period_end, license.status, now);
   const isTrial = license.access_type === 'trial' || license.plan_type.trim().toLowerCase() === 'trial';
   const status = license.is_banned ? 'banned' : active ? 'active' : license.status === 'revoked' ? 'revoked' : 'expired';
-  return { refId, name: license.name, license_key: license.key, status, current_period_end: license.current_period_end, days_remaining: daysRemaining(license.current_period_end, now), plan_type: license.plan_type, access_type: isTrial ? 'trial' : 'paid', is_trial: isTrial, trial_ends_at: license.trial_ends_at };
+  return {
+    refId,
+    name: license.name,
+    license_key: maskKey ? maskLicenseKey(license.key) : license.key,
+    status,
+    current_period_end: license.current_period_end,
+    days_remaining: daysRemaining(license.current_period_end, now),
+    plan_type: license.plan_type,
+    access_type: isTrial ? 'trial' : 'paid',
+    is_trial: isTrial,
+    trial_ends_at: license.trial_ends_at,
+  };
 }
 
 licenseRoutes.post('/check', async (c) => {
@@ -49,7 +61,7 @@ licenseRoutes.post('/lookup', async (c) => {
   if (!email) return jsonError(c, 400, 'A valid email is required');
 
   const license = await findLicenseByEmail(c.env.DB, email);
-  return c.json({ license: license ? publicLicense(license, email) : null });
+  return c.json({ license: license ? publicLicense(license, email, new Date(), true) : null });
 });
 
 licenseRoutes.post('/activate', async (c) => {
