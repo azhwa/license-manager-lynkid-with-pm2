@@ -7,7 +7,19 @@ type RateLimitOptions = { scope: string; maxRequests: number; windowSeconds: num
 const fallbackBuckets = new Map<string, { startedAt: number; count: number }>();
 
 function clientIp(c: Parameters<MiddlewareHandler<AppContext>>[0]): string {
-  return c.req.header('CF-Connecting-IP') || 'unknown';
+  const cfConnectingIp = c.req.header('CF-Connecting-IP');
+  if (cfConnectingIp?.trim()) return cfConnectingIp.trim();
+
+  const xForwardedFor = c.req.header('X-Forwarded-For');
+  if (xForwardedFor?.trim()) {
+    const firstIp = xForwardedFor.split(',')[0].trim();
+    if (firstIp) return firstIp;
+  }
+
+  const xRealIp = c.req.header('X-Real-IP');
+  if (xRealIp?.trim()) return xRealIp.trim();
+
+  return 'unknown';
 }
 
 export function createRateLimit(options: RateLimitOptions): MiddlewareHandler<AppContext> {

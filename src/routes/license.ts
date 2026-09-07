@@ -13,6 +13,7 @@ licenseRoutes.use('/check', checkRateLimit);
 licenseRoutes.use('/lookup', createRateLimit({ scope: 'license-lookup', maxRequests: 20, windowSeconds: 60 }));
 licenseRoutes.use('/activate', createRateLimit({ scope: 'license-activate', maxRequests: 20, windowSeconds: 60 }));
 licenseRoutes.use('/unbind', createRateLimit({ scope: 'license-unbind', maxRequests: 20, windowSeconds: 60 }));
+licenseRoutes.use('/validate', createRateLimit({ scope: 'license-validate', maxRequests: 120, windowSeconds: 60 }));
 
 function normalizeDeviceHash(value: unknown): string | null {
   if (typeof value !== 'string') return null;
